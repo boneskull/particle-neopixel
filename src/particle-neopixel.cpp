@@ -27,6 +27,8 @@ SYSTEM_MODE(AUTOMATIC);
 #define PIXEL_COUNT 36
 #define PIXEL_TYPE 0x02  // WS2812B
 
+#define FIRMWARE_VERSION 0
+
 Adafruit_NeoPixel strip(PIXEL_COUNT, PIXEL_PIN, PIXEL_TYPE);
 
 struct Config {
@@ -101,8 +103,8 @@ int setDelay(String value) {
 
 void setup() {
   EEPROM.get(0, config);
-  if (config.version != 0) {
-    Config defaultConfig = {0, 100, 50, true};
+  if (config.version != FIRMWARE_VERSION) {
+    Config defaultConfig = {FIRMWARE_VERSION, 100, 50, true};
     config = defaultConfig;
     writeEEPROM();
   }
@@ -128,11 +130,11 @@ void loop() {
 
 void rainbow(uint8_t wait) {
   uint16_t i, j;
-  strip.setBrightness(config.brightness);
   for (j = 0; j < 256; j++) {
     for (i = 0; i < strip.numPixels(); i++) {
       strip.setPixelColor(i, Wheel((i + j) & 255));
     }
+    strip.setBrightness(config.brightness);
     strip.show();
     delay(wait);
   }
