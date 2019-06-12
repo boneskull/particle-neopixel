@@ -43,7 +43,7 @@ DynamicJsonDocument doc(JSON_OBJECT_SIZE(3));
 char settingsJson[128];
 
 // Prototypes for local build, ok to leave in for Build IDE
-void rainbow(uint8_t wait);
+void rainbow();
 uint32_t Wheel(byte WheelPos);
 
 size_t serializeSettings() {
@@ -53,26 +53,25 @@ size_t serializeSettings() {
   return serializeJson(doc, settingsJson);
 }
 
-void writeEEPROM() {
+void saveSettings() {
   EEPROM.put(0, config);
   serializeSettings();
+  Particle.publish("settings", settingsJson);
 }
 
 int enable(String ignored) {
   if (!config.enabled) {
     config.enabled = true;
-    writeEEPROM();
+    saveSettings();
     return 1;
   }
   return 0;
 }
 
-int disable(String ignored) {
+int disable(String ignored = "") {
   if (config.enabled) {
     config.enabled = false;
-    strip.setBrightness(0);
-    strip.show();
-    writeEEPROM();
+    saveSettings();
     return 1;
   }
   return 0;
@@ -81,11 +80,11 @@ int disable(String ignored) {
 int setBrightness(String value) {
   uint8_t brightness = value.toInt();
   if (brightness == 0) {
-    return disable("");
+    return disable();
   }
   if (brightness <= 100 && brightness != config.brightness) {
     config.brightness = brightness;
-    writeEEPROM();
+    saveSettings();
     return 1;
   }
   return 0;
@@ -95,7 +94,7 @@ int setDelay(String value) {
   uint8_t delayMs = value.toInt();
   if (delayMs > 0 && delayMs != config.delayMs) {
     config.delayMs = delayMs;
-    writeEEPROM();
+    saveSettings();
     return 1;
   }
   return 0;
@@ -106,10 +105,11 @@ void setup() {
   if (config.version != FIRMWARE_VERSION) {
     Config defaultConfig = {FIRMWARE_VERSION, 100, 50, true};
     config = defaultConfig;
-    writeEEPROM();
+    saveSettings();
+  } else {
+    serializeSettings();
   }
 
-  serializeSettings();
 
   strip.begin();
   strip.show();  // Initialize all pixels to 'off'
@@ -122,21 +122,23 @@ void setup() {
   Particle.variable("config", settingsJson);
 }
 
-void loop() {
-  if (config.enabled) {
-    rainbow(config.delayMs);
-  }
-}
+void loop() { rainbow(); }
 
-void rainbow(uint8_t wait) {
+void rainbow() {
   uint16_t i, j;
-  for (j = 0; j < 256; j++) {
-    for (i = 0; i < strip.numPixels(); i++) {
+  for (j = 0; j < 256 && config.enabled; j++) {
+    if (strip.getBrightness() != config.brightness) {
+      strip.setBrightness(config.brightness);
+    }
+    for (i = 0; i < strip.numPixels() && config.enabled; i++) {
       strip.setPixelColor(i, Wheel((i + j) & 255));
     }
-    strip.setBrightness(config.brightness);
     strip.show();
-    delay(wait);
+    delay(config.delayMs);
+  }
+  if (!config.enabled && strip.getBrightness() != 0) {
+    strip.setBrightness(0);
+    strip.show();
   }
 }
 
